@@ -1,70 +1,90 @@
-// lib/services/api_client.dart
+// CLIENTE HTTP SIMPLE PARA API LARAVEL
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
-import '../modelos/marca.dart';
 import '../modelos/auto.dart';
+import '../modelos/marca.dart';
 
-// COMENTARIOS EN MAYUSCULAS Y SIN TILDES
 class ApiClient {
-  final String baseUrl; // EJ: http://127.0.0.1:8000/api
-
+  final String baseUrl;
   ApiClient({required this.baseUrl});
 
-  // METODO AUXILIAR PARA HEADERS SEGUROS (SIN NULLS)
-  Map<String, String> _headers() {
-    return <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  // ================== AUTOS ==================
+  Future<List<Auto>> getAutos() async {
+    final res = await http.get(Uri.parse('$baseUrl/autos'), headers: _headers);
+    if (res.statusCode != 200)
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
+
+    final body = jsonDecode(res.body);
+
+    // SI TU LARAVEL DEVUELVE PAGINADO {data: [...]} AJUSTA ACA:
+    final List list = (body is Map && body['data'] is List)
+        ? body['data']
+        : (body as List);
+
+    return list.map((j) => Auto.fromJson(j)).toList();
   }
 
-  // METODO AUXILIAR: DECODIFICAR RESPUESTA EN LISTA
-  // SOPORTA FORMATO: { data: [...] } O DIRECTAMENTE [...]
-  List<Map<String, dynamic>> _extractList(dynamic body) {
-    if (body == null) return <Map<String, dynamic>>[];
-    if (body is Map && body['data'] is List) {
-      return (body['data'] as List).whereType<Map<String, dynamic>>().toList();
-    }
-    if (body is List) {
-      return body.whereType<Map<String, dynamic>>().toList();
-    }
-    // SI NO ES NI MAP CON DATA NI LISTA, DEVUELVE VACIO
-    return <Map<String, dynamic>>[];
+  Future<Auto> getAuto(int id) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/autos/$id'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200)
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
+    return Auto.fromJson(jsonDecode(res.body));
   }
 
-  // ----- MARCAS -----
-  Future<List<Marca>> getMarcas({int page = 1}) async {
-    final uri = Uri.parse('$baseUrl/marcas?page=$page');
+  Future<Auto> createAuto(Auto a) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/autos'),
+      headers: _headers,
+      body: jsonEncode(a.toJson()),
+    );
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
+    }
+    return Auto.fromJson(jsonDecode(res.body));
+  }
 
-    final res = await http.get(uri, headers: _headers());
+  Future<Auto> updateAuto(Auto a) async {
+    if (a.id == null) throw Exception('ID REQUERIDO PARA UPDATE');
+    final res = await http.put(
+      Uri.parse('$baseUrl/autos/${a.id}'),
+      headers: _headers,
+      body: jsonEncode(a.toJson()),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
+    }
+    return Auto.fromJson(jsonDecode(res.body));
+  }
 
-    if (res.statusCode == 200) {
-      // USAMOS UTF8 PARA EVITAR PROBLEMAS CON TILDES
-      final raw = utf8.decode(res.bodyBytes);
-      final dynamic body = (raw.isNotEmpty) ? jsonDecode(raw) : null;
-
-      final lista = _extractList(body);
-      return lista.map((e) => Marca.fromJson(e)).toList();
-    } else {
-      throw Exception('ERROR HTTP ${res.statusCode}: ${res.body}');
+  Future<void> deleteAuto(int id) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/autos/$id'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200 && res.statusCode != 204) {
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
     }
   }
 
-  // ----- AUTOS -----
-  Future<List<Auto>> getAutos({int page = 1}) async {
-    final uri = Uri.parse('$baseUrl/autos?page=$page');
+  // ================== MARCAS ==================
+  Future<List<Marca>> getMarcas() async {
+    final res = await http.get(Uri.parse('$baseUrl/marcas'), headers: _headers);
+    if (res.statusCode != 200)
+      throw Exception('HTTP ${res.statusCode}: ${res.body}');
 
-    final res = await http.get(uri, headers: _headers());
+    final body = jsonDecode(res.body);
+    final List list = (body is Map && body['data'] is List)
+        ? body['data']
+        : (body as List);
 
-    if (res.statusCode == 200) {
-      final raw = utf8.decode(res.bodyBytes);
-      final dynamic body = (raw.isNotEmpty) ? jsonDecode(raw) : null;
-
-      final lista = _extractList(body);
-      return lista.map((e) => Auto.fromJson(e)).toList();
-    } else {
-      throw Exception('ERROR HTTP ${res.statusCode}: ${res.body}');
-    }
+    return list.map((j) => Marca.fromJson(j)).toList();
   }
 }
